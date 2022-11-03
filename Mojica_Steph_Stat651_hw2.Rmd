@@ -1,0 +1,285 @@
+---
+title: "Stat. 651 Homework 2"
+author: " Stephanie Mojica"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+date: "10-31-2022"
+---
+
+### Chapter 14
+
+## Exercise 3
+
+```{r}
+library(pacman)
+p_load(ggplot2, macleish, lubridate, zoo, plotly,shiny)
+
+whately_2015$when <- as.Date(whately_2015$when)
+
+yq <- as.yearqtr(as.yearmon(whately_2015$when, "%Y/%m/%d") + 1/12)
+whately_2015$Season <- factor(format(yq, "%q"), levels = 1:4,
+                labels = c("Winter Solstice", "Vernal Equinox", "Summer Solstice", "Autumnal Equinox"))
+head(whately_2015)
+
+whately_2015_plot <- ggplot(data = whately_2015, aes(x = when, y = temperature)) +
+  geom_point(aes(color = Season), size = 2)
+ggplotly(whately_2015_plot)
+
+
+
+```
+
+
+
+## Exercise 4
+
+```{r, Data wrangling}
+p_load(tidyverse, shiny, shinybusy,mdsr, DT)
+
+mergedViolations <- Violations %>%
+  left_join(Cuisines)
+
+mergedViolations %>%
+  select(dba,boro,cuisine_description) %>% 
+  group_by(dba) %>%
+  count(cuisine_description) %>%
+  filter(cuisine_description == "Pizza")
+
+mergedViolations %>%
+  select(dba,boro,cuisine_description) %>% 
+ filter(boro == "BROOKLYN") %>%
+  group_by(dba) %>%
+  count(cuisine_description) %>%
+  filter(cuisine_description == "Caribbean")
+
+
+
+
+
+ui <- fluidPage(
+  titlePanel("Number of Restaurants in a Cuisine"),
+  fluidRow(
+    # some things take time: this lets users know
+    add_busy_spinner(spin = "fading-circle"),
+    column(
+      4,
+      selectInput(inputId = "boro",
+                  label = "Borough:",
+                  choices = c(
+                    "ALL",
+                    unique(as.character(mergedViolations$boro))
+                  )
+      )
+    ),
+    # display dynamic list of cuisines
+    column(4, uiOutput("cuisinecontrols"))
+  ),
+  # Create a new row for the table.
+  fluidRow(
+    DT::dataTableOutput("table")
+  )
+)
+
+server <- function(input, output) {
+  datasetboro <- reactive({ # Filter data based on selections
+    req(input$boro)
+    data <- mergedViolations %>%
+      select(dba,boro,cuisine_description) %>% 
+    group_by(dba) %>%
+    count(cuisine_description)
+
+})
+  
+  datasetcuisine <- reactive({  # dynamic list of cuisines
+    req(input$cuisine)   # wait until list is available
+    data <- datasetboro() %>%
+      unique()
+    if (input$cuisine != "ALL") {
+      data <- data %>%
+        filter(cuisine_description == input$cuisine)
+    }
+    data
+  })
+  
+  output$table <- DT::renderDataTable(DT::datatable(datasetcuisine()))
+  
+  output$cuisinecontrols <- renderUI({
+    availablelevels <-
+      unique(sort(as.character(datasetboro()$cuisine_description)))
+    selectInput(
+      inputId = "cuisine",
+      label = "Cuisine:",
+      choices = c("ALL", availablelevels)
+    )
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+## Exercise 6
+
+```{r}
+p_load(ggExtra, nasaweather)
+
+p <- ggplot(storms, aes(x = wind, y = pressure)) +
+  geom_point() +
+  theme_classic() +
+  stat_smooth(method = "loess", formula = y ~ x, size = 2)
+ggExtra::ggMarginal(p, type = "histogram", binwidth = 3)
+
+```
+
+This scatterplot shows a negative linear association between wind and pressure in Tropical cyclone tracks through the Atlantic Ocean, Caribbean Sea and Gulf of Mexico from 1995 to 2005, as the pressure increases, the wind decreases. The histograms also give us an insight between the relationship between the two variables. The pressure is higher in millibars when the wind is less than 40 knots. 
+
+
+## Exercise 7
+
+
+```{r}
+library(shiny)
+
+p_load(tidyverse, shiny, shinybusy,mdsr, DT, palmerpenguins)
+
+penguins<- palmerpenguins::penguins
+
+
+
+
+ui <- fluidPage(
+  titlePanel("Palmer Penguins"),
+  fluidRow(
+    # some things take time: this lets users know
+    add_busy_spinner(spin = "fading-circle"),
+    column(
+      4,
+      selectInput(inputId = "species",
+                  label = "Select Species:",
+                  choices = c(
+                    "ALL",
+                    unique(as.character(penguins$species))
+                  )
+      )
+    ),
+    # display dynamic list of cuisines
+    column(4, uiOutput("speciescontrols"))
+  ),
+  # Create a new row for the table.
+  fluidRow(
+    DT::dataTableOutput("table")
+  )
+)
+
+server <- function(input, output) {
+  datasetspecies <- reactive({ # Filter data based on selections
+    req(input$species)
+    data <- penguins %>%
+      select(species,sex,island,bill_length_mm, bill_depth_mm,flipper_length_mm,body_mass_g, year ) %>%
+      group_by(species)
+      
+    
+  })
+  
+  datasetsex <- reactive({  # dynamic list of cuisines
+    req(input$sex)   # wait until list is available
+    data <- datasetspecies() %>%
+      unique()
+    if (input$sex != "ALL") {
+      data <- data %>%
+        filter(sex == input$sex)
+    }
+    data
+  })
+  
+  output$table <- DT::renderDataTable(DT::datatable(datasetsex()))
+  
+  output$speciescontrols <- renderUI({
+    availablelevels <-
+      unique(sort(as.character(datasetspecies()$sex)))
+    selectInput(
+      inputId = "sex",
+      label = "Select Gender:",
+      choices = c("ALL", availablelevels)
+    )
+  })
+}
+
+
+shinyApp(ui = ui, server = server)
+```
+
+
+
+## Exercise 8
+
+```{r}
+
+p_load(macleish, dplyr)
+
+whately<- macleish::whately_2015
+orchard<- macleish::orchard_2015
+
+ui <- fluidPage(
+  titlePanel("Weather data"),
+  fluidRow(
+    # some things take time: this lets users know
+    add_busy_spinner(spin = "fading-circle"),
+    column(
+      4,
+      selectInput(inputId = "data",
+                  label = "Select Data:",
+                  choices = c(
+                    "orchard", "whately"
+                  
+                  )
+      )
+    ),
+    # display dynamic list of cuisines
+    column(4, uiOutput("datacontrols"))
+  ),
+  # Create a new row for the table.
+  fluidRow(
+    DT::dataTableOutput("table")
+  )
+)
+
+server <- function(input, output) {
+  datasetweather <- reactive({ # Filter data based on selections
+    req(input$data)
+    data <- select(orchard, whately)
+    
+    
+  })
+  
+  datasetwhen <- reactive({  # dynamic list of cuisines
+    req(input$when)   # wait until list is available
+    data <- datasetweather() %>%
+      unique()
+    if (input$when != "ALL") {
+      data <- data %>%
+        filter(when == input$when)
+    }
+    data
+  })
+  
+  output$table <- DT::renderDataTable(DT::datatable(datasetwhen()))
+  
+  output$datacontrols <- renderUI({
+    availablelevels <-
+      unique(sort(as.character(datasetweather()$when)))
+    selectInput(
+      inputId = "when",
+      label = "Select Date:",
+      choices = c("ALL", availablelevels)
+    )
+  })
+}
+
+shinyApp(ui = ui, server = server)
+
+
+```
+
